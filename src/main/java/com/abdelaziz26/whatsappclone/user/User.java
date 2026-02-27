@@ -31,7 +31,8 @@ public class User implements UserDetails {
 
     private String password;
 
-    private boolean online;
+    @Column(columnDefinition = "boolean default false")
+    private Boolean online = false;
 
     @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Message> sentMessages;
