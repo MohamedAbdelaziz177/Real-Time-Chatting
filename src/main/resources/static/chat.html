@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - WebSocket Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #e9ecef;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .chat-container {
+            background: white;
+            width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 16px;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .connection-status {
+            font-size: 14px;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 8px;
+            border-radius: 20px;
+        }
+        .messages-area {
+            height: 300px;
+            overflow-y: auto;
+            padding: 16px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .message.sent {
+            background: #007bff;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .message.received {
+            background: #e4e6eb;
+            color: black;
+            align-self: flex-start;
+        }
+        .message small {
+            display: block;
+            font-size: 10px;
+            margin-top: 4px;
+            opacity: 0.7;
+        }
+        .input-panel {
+            padding: 16px;
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #495057;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            flex: 1;
+            font-size: 14px;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        button.secondary {
+            background: #6c757d;
+        }
+        button.secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+        .error {
+            color: red;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+<div class="chat-container">
+    <div class="header">
+        <span>💬 Private Chat Test</span>
+        <span class="connection-status" id="connectionStatus">Disconnected</span>
+    </div>
+
+    <div class="messages-area" id="messagesArea">
+        <!-- Messages will appear here -->
+    </div>
+
+    <div class="input-panel">
+        <div class="input-group">
+            <label>Send to (User Email):</label>
+            <input type="text" id="recipient" placeholder="e.g. user@example.com">
+        </div>
+        <div class="input-group">
+            <label>Message:</label>
+            <input type="text" id="messageInput" placeholder="Type your message...">
+        </div>
+
+        <div class="button-group">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" class="secondary" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+        </div>
+        <div id="errorMsg" class="error"></div>
+    </div>
+</div>
+
+<script>
+    // Stomp client reference
+    let stompClient = null;
+    const messagesArea = document.getElementById('messagesArea');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const errorDiv = document.getElementById('errorMsg');
+
+    // Check if logged in
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+        window.location.href = '/login.html';
+    }
+
+    // Get current user email (stored during login)
+    const currentUserEmail = localStorage.getItem('currentUser') || 'me';
+
+    // Utility: display messages
+    function displayMessage(content, from, type = 'received') {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', type);
+        messageDiv.innerHTML = `<strong>${from}:</strong> ${content}<small>${new Date().toLocaleTimeString()}</small>`;
+        messagesArea.appendChild(messageDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    // Connect to WebSocket
+    function connect() {
+        errorDiv.textContent = '';
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.debug = () => {}; // disable debug logging
+
+        const headers = {
+            'Authorization': 'Bearer ' + token
+        };
+
+        stompClient.connect(headers, (frame) => {
+            connectionStatus.textContent = 'Connected';
+            connectionStatus.style.background = '#28a745';
+            connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+            sendBtn.disabled = false;
+
+            // Subscribe to private messages
+            stompClient.subscribe('/user/queue/messages', (message) => {
+                const msg = JSON.parse(message.body);
+                // Display received message with sender's email
+                displayMessage(msg.content, msg.senderEmail, 'received');
+            });
+        }, (error) => {
+            errorDiv.textContent = 'Connection failed: ' + error;
+            connectionStatus.textContent = 'Disconnected';
+        });
+    }
+
+    // Disconnect
+    function disconnect() {
+        if (stompClient !== null) {
+            stompClient.disconnect(() => {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.style.background = 'rgba(255,255,255,0.2)';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+            });
+        }
+    }
+
+    // Send a private message
+    function sendMessage() {
+        const recipient = document.getElementById('recipient').value.trim();
+        const content = document.getElementById('messageInput').value.trim();
+        if (!recipient || !content) {
+            alert('Please fill recipient and message');
+            return;
+        }
+
+        // Build payload according to your MessageRequestDto
+        const messagePayload = {
+            recipientEmail: recipient,
+            content: content
+            // sender is inferred from token on server
+        };
+
+        stompClient.send('/app/chat', {}, JSON.stringify(messagePayload));
+
+        // Display own message immediately (with current user's email)
+        displayMessage(content, currentUserEmail, 'sent');
+        document.getElementById('messageInput').value = ''; // clear input
+    }
+
+    // Auto-connect on page load (optional)
+    // window.onload = () => { connect(); };
+</script>
+</body>
+</html>
