@@ -13,14 +13,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor @AllArgsConstructor
 @Builder
 public class MessageResponseDto {
-    private Long senderId;
+    private String senderEmail;
     private String content;
     private Long receiverId;
     private LocalDateTime timestamp;
 
-    public MessageResponseDto(MessageRequestDto messageRequestDto, Long senderId) {
+    public MessageResponseDto(MessageRequestDto messageRequestDto, String senderEmail) {
         this.content = messageRequestDto.getContent();
         this.timestamp = LocalDateTime.now();
-        this.senderId = senderId;
+        this.senderEmail = senderEmail;
     }
 }

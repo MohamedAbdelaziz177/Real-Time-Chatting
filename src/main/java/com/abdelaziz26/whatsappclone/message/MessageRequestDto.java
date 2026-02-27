@@ -8,5 +8,5 @@ import lombok.*;
 public class MessageRequestDto {
 
     private String content;
-    private Long receiverId;
+    private String recipientEmail;
 }
