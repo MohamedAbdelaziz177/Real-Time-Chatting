@@ -18,12 +18,6 @@ import java.security.Principal;
 import java.util.List;
 
 
-/*
-* Some browsers cannot use Request headers seamlessly when upgrading the TCP connection
-* The solution --> intercept Each Stomp Frame and extract the Principal like normal Http Request
-*
-* */
-
 @Component
 @RequiredArgsConstructor
 @Slf4j
