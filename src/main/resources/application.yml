@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: whatsappClone
+
+  datasource:
+    username: admin
+    password: 1234
+    url: jdbc:postgresql://localhost:5432/whatsapp_clone
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
