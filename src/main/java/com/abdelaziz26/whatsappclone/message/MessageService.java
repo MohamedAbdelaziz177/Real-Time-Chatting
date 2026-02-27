@@ -8,6 +8,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.security.Principal;
 import java.time.LocalDateTime;
 
 @Service
@@ -16,13 +17,16 @@ public class MessageService {
 
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
-    private final SecurityContextUtil  securityContextUtil;
     private final SimpMessagingTemplate simpMessagingTemplate;
 
-    public MessageResponseDto sendMessage(MessageRequestDto messageRequestDto) {
+    public MessageResponseDto sendMessage(MessageRequestDto messageRequestDto, Principal princial) {
 
-        User currentUser = securityContextUtil.getCurrentUser().orElseThrow(() -> new AccessDeniedException("User is not logged in"));
-        User recipient = userRepository.findById(messageRequestDto.getReceiverId()).orElseThrow(() -> new RuntimeException("User is not found"));
+        /*  مبتشتغلش مع الويب سوكيت  */
+        //User currentUser = securityContextUtil.getCurrentUser().orElseThrow(() -> new AccessDeniedException("User is not logged in"));
+
+        String username = princial.getName();
+        User currentUser = userRepository.findByEmail(username).orElseThrow(() -> new AccessDeniedException("User is not logged in"));
+        User recipient = userRepository.findByEmail(messageRequestDto.getRecipientEmail()).orElseThrow(() -> new RuntimeException("User is not found"));
 
         Message message = new Message();
         message.setSender(currentUser);
@@ -32,7 +36,7 @@ public class MessageService {
         messageRepository.save(message);
 
 
-        MessageResponseDto msgRes = new MessageResponseDto(messageRequestDto, currentUser.getId());
+        MessageResponseDto msgRes = new MessageResponseDto(messageRequestDto, currentUser.getEmail());
         simpMessagingTemplate.convertAndSendToUser(recipient.getUsername(),
                 "/queue/messages",
                 msgRes

@@ -2,6 +2,7 @@ package com.abdelaziz26.whatsappclone.interceptors;
 
 import com.abdelaziz26.whatsappclone.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -14,6 +15,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
+import java.util.List;
 
 
 /*
@@ -24,6 +26,7 @@ import java.security.Principal;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class WsInboundChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
@@ -36,6 +39,8 @@ public class WsInboundChannelInterceptor implements ChannelInterceptor {
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
             String authHeader = accessor.getFirstNativeHeader("Authorization");
 
+            log.info(">>> STOMP CONNECT authHeader: " + authHeader);
+
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
 
@@ -43,7 +48,7 @@ public class WsInboundChannelInterceptor implements ChannelInterceptor {
                     String username = jwtService.extractUserName(token);
 
                     UsernamePasswordAuthenticationToken user =
-                            new UsernamePasswordAuthenticationToken(username, null, null);
+                            new UsernamePasswordAuthenticationToken(username, null, List.of());
 
                     accessor.setUser(user);
                 } else {
